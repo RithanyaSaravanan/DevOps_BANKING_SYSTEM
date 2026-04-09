@@ -199,15 +199,6 @@ services:
       - prometheus
     restart: unless-stopped
 
-  jenkins:
-    image: jenkins/jenkins:lts
-    container_name: jenkins
-    ports:
-      - "8080:8080"
-      - "50000:50000"
-    volumes:
-      - jenkins_home:/var/jenkins_home
-    restart: unless-stopped
 
 volumes:
   pgdata-user:
@@ -216,4 +207,3 @@ volumes:
   pgdata-payment:
   pgdata-fraud:
   grafana-data:
-  jenkins_home:
