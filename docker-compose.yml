@@ -1,20 +1,22 @@
 version: "3.9"
 
 services:
+
   # ─── Databases ───────────────────────────────────────────
+
   postgres-user:
-  image: postgres:15-alpine
-  environment:
-    POSTGRES_USER: banking
-    POSTGRES_PASSWORD: banking123
-    POSTGRES_DB: userdb
-  volumes:
-    - pgdata-user:/var/lib/postgresql/data
-  healthcheck:
-    test: ["CMD-SHELL", "pg_isready -U banking -d userdb"]
-    interval: 5s
-    timeout: 5s
-    retries: 5
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: banking
+      POSTGRES_PASSWORD: banking123
+      POSTGRES_DB: userdb
+    volumes:
+      - pgdata-user:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U banking -d userdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   postgres-account:
     image: postgres:15-alpine
@@ -22,8 +24,6 @@ services:
       POSTGRES_USER: banking
       POSTGRES_PASSWORD: banking123
       POSTGRES_DB: accountdb
-    ports:
-      - "5433:5432"
     volumes:
       - pgdata-account:/var/lib/postgresql/data
     healthcheck:
@@ -38,8 +38,6 @@ services:
       POSTGRES_USER: banking
       POSTGRES_PASSWORD: banking123
       POSTGRES_DB: transactiondb
-    ports:
-      - "5434:5432"
     volumes:
       - pgdata-transaction:/var/lib/postgresql/data
     healthcheck:
@@ -54,8 +52,6 @@ services:
       POSTGRES_USER: banking
       POSTGRES_PASSWORD: banking123
       POSTGRES_DB: paymentdb
-    ports:
-      - "5435:5432"
     volumes:
       - pgdata-payment:/var/lib/postgresql/data
     healthcheck:
@@ -70,8 +66,6 @@ services:
       POSTGRES_USER: banking
       POSTGRES_PASSWORD: banking123
       POSTGRES_DB: frauddb
-    ports:
-      - "5436:5432"
     volumes:
       - pgdata-fraud:/var/lib/postgresql/data
     healthcheck:
@@ -81,13 +75,14 @@ services:
       retries: 5
 
   # ─── Microservices ───────────────────────────────────────
+
   user-service:
     build: ./user-service
     ports:
       - "8001:8000"
     environment:
       DATABASE_URL: postgresql://banking:banking123@postgres-user:5432/userdb
-      SECRET_KEY: super-secret-key-change-in-prod
+      SECRET_KEY: super-secret-key
     depends_on:
       postgres-user:
         condition: service_healthy
@@ -99,7 +94,7 @@ services:
       - "8002:8000"
     environment:
       DATABASE_URL: postgresql://banking:banking123@postgres-account:5432/accountdb
-      SECRET_KEY: super-secret-key-change-in-prod
+      SECRET_KEY: super-secret-key
     depends_on:
       postgres-account:
         condition: service_healthy
@@ -111,13 +106,10 @@ services:
       - "8003:8000"
     environment:
       DATABASE_URL: postgresql://banking:banking123@postgres-transaction:5432/transactiondb
-      SECRET_KEY: super-secret-key-change-in-prod
       ACCOUNT_SERVICE_URL: http://account-service:8000
     depends_on:
       postgres-transaction:
         condition: service_healthy
-      account-service:
-        condition: service_started
     restart: unless-stopped
 
   fraud-service:
@@ -137,20 +129,16 @@ services:
       - "8005:8000"
     environment:
       DATABASE_URL: postgresql://banking:banking123@postgres-payment:5432/paymentdb
-      SECRET_KEY: super-secret-key-change-in-prod
       FRAUD_SERVICE_URL: http://fraud-service:8000
       ACCOUNT_SERVICE_URL: http://account-service:8000
       TRANSACTION_SERVICE_URL: http://transaction-service:8000
     depends_on:
       postgres-payment:
         condition: service_healthy
-      fraud-service:
-        condition: service_started
-      account-service:
-        condition: service_started
     restart: unless-stopped
 
   # ─── API Gateway ─────────────────────────────────────────
+
   gateway:
     build: ./gateway
     ports:
@@ -170,6 +158,7 @@ services:
     restart: unless-stopped
 
   # ─── Monitoring ──────────────────────────────────────────
+
   prometheus:
     image: prom/prometheus:v2.47.0
     ports:
@@ -189,9 +178,6 @@ services:
       GF_SECURITY_ADMIN_PASSWORD: admin123
     volumes:
       - grafana-data:/var/lib/grafana
-      - ./monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
-      - ./monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
-      - ./monitoring/grafana/dashboard.json:/etc/grafana/provisioning/dashboards/banking-platform.json
     depends_on:
       - prometheus
     restart: unless-stopped
