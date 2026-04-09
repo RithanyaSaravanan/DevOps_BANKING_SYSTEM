@@ -22,7 +22,7 @@ pipeline {
 
         stage('Health Check') {
             steps {
-                sh 'curl -f http://localhost:8010/health'
+                sh 'curl -f http://gateway:8000/health'
             }
         }
     }
