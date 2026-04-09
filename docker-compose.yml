@@ -3,20 +3,18 @@ version: "3.9"
 services:
   # ─── Databases ───────────────────────────────────────────
   postgres-user:
-    image: postgres:15-alpine
-    environment:
-      POSTGRES_USER: banking
-      POSTGRES_PASSWORD: banking123
-      POSTGRES_DB: userdb
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata-user:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U banking -d userdb"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+  image: postgres:15-alpine
+  environment:
+    POSTGRES_USER: banking
+    POSTGRES_PASSWORD: banking123
+    POSTGRES_DB: userdb
+  volumes:
+    - pgdata-user:/var/lib/postgresql/data
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -U banking -d userdb"]
+    interval: 5s
+    timeout: 5s
+    retries: 5
 
   postgres-account:
     image: postgres:15-alpine
