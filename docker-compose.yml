@@ -73,8 +73,6 @@ services:
 
   user-service:
     build: ./user-service
-    ports:
-      - "8001:8000"
     environment:
       DATABASE_URL: postgresql://banking:banking123@postgres-user:5432/userdb
       SECRET_KEY: super-secret-key
@@ -85,8 +83,6 @@ services:
 
   account-service:
     build: ./account-service
-    ports:
-      - "8002:8000"
     environment:
       DATABASE_URL: postgresql://banking:banking123@postgres-account:5432/accountdb
       SECRET_KEY: super-secret-key
@@ -97,8 +93,6 @@ services:
 
   transaction-service:
     build: ./transaction-service
-    ports:
-      - "8003:8000"
     environment:
       DATABASE_URL: postgresql://banking:banking123@postgres-transaction:5432/transactiondb
       ACCOUNT_SERVICE_URL: http://account-service:8000
@@ -109,8 +103,6 @@ services:
 
   fraud-service:
     build: ./fraud-service
-    ports:
-      - "8004:8000"
     environment:
       DATABASE_URL: postgresql://banking:banking123@postgres-fraud:5432/frauddb
     depends_on:
@@ -120,8 +112,6 @@ services:
 
   payment-service:
     build: ./payment-service
-    ports:
-      - "8005:8000"
     environment:
       DATABASE_URL: postgresql://banking:banking123@postgres-payment:5432/paymentdb
       FRAUD_SERVICE_URL: http://fraud-service:8000
@@ -153,7 +143,7 @@ services:
   prometheus:
     image: prom/prometheus:v2.47.0
     ports:
-      - "9090:9090"
+      - "9091:9090"
     volumes:
       - ./monitoring/prometheus:/etc/prometheus
     command:
