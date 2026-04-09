@@ -21,10 +21,13 @@ pipeline {
         }
 
         stage('Health Check') {
-            steps {
-                sh 'curl -f http://localhost:8000/health'
-            }
-        }
+    steps {
+        sh '''
+        docker ps
+        curl -f http://$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' banking-ci-cd-gateway-1):8000/health
+        '''
+    }
+}
     }
 
     post {
