@@ -5,44 +5,45 @@ pipeline {
 
         stage('Checkout Code') {
             steps {
-                checkout scm
+                git branch: 'main', url: 'https://github.com/YOUR_USERNAME/YOUR_REPO.git'
             }
         }
 
         stage('Build Docker Images') {
             steps {
-                sh 'docker compose build'
+                bat 'docker-compose build'
             }
         }
 
         stage('Start Services') {
             steps {
-                sh 'docker compose up -d'
+                bat 'docker-compose up -d'
             }
         }
 
         stage('Wait for Services') {
             steps {
-                sleep 20
+                bat 'timeout /t 20'
             }
         }
 
         stage('Health Check') {
             steps {
-                sh '''
-                curl -f http://localhost:8001/health
-                curl -f http://localhost:8002/health
-                curl -f http://localhost:8003/health
-                curl -f http://localhost:8004/health
-                curl -f http://localhost:8005/health
-                '''
+                bat 'curl http://localhost:8001/health'
+                bat 'curl http://localhost:8002/health'
+                bat 'curl http://localhost:8003/health'
+                bat 'curl http://localhost:8004/health'
+                bat 'curl http://localhost:8005/health'
             }
         }
+    }
 
-        stage('Stop Services') {
-            steps {
-                sh 'docker compose down'
-            }
+    post {
+        success {
+            echo '✅ Deployment Successful!'
+        }
+        failure {
+            echo '❌ Pipeline Failed!'
         }
     }
 }
