@@ -170,17 +170,17 @@ services:
     restart: unless-stopped
 
   grafana:
-    image: grafana/grafana:10.2.0
-    ports:
-      - "3000:3000"
-    environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin123
-    volumes:
-      - grafana-data:/var/lib/grafana
-    depends_on:
-      - prometheus
-    restart: unless-stopped
+  image: grafana/grafana:10.2.0
+  ports:
+    - "3001:3000"
+  environment:
+    GF_SECURITY_ADMIN_USER: admin
+    GF_SECURITY_ADMIN_PASSWORD: admin123
+  volumes:
+    - grafana-data:/var/lib/grafana
+  depends_on:
+    - prometheus
+  restart: unless-stopped
 
 volumes:
   pgdata-user:
