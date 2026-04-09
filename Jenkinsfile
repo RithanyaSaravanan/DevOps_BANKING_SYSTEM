@@ -3,37 +3,31 @@ pipeline {
 
     stages {
 
-        stage('Checkout Code') {
-            steps {
-                git branch: 'main', url: 'https://github.com/RithanyaSaravanan/DevOps_BANKING_SYSTEM'
-            }
-        }
-
         stage('Build Docker Images') {
             steps {
-                bat 'docker-compose build'
+                sh 'docker-compose build'
             }
         }
 
         stage('Start Services') {
             steps {
-                bat 'docker-compose up -d'
+                sh 'docker-compose up -d'
             }
         }
 
         stage('Wait for Services') {
             steps {
-                bat 'timeout /t 20'
+                sh 'sleep 20'
             }
         }
 
         stage('Health Check') {
             steps {
-                bat 'curl http://localhost:8001/health'
-                bat 'curl http://localhost:8002/health'
-                bat 'curl http://localhost:8003/health'
-                bat 'curl http://localhost:8004/health'
-                bat 'curl http://localhost:8005/health'
+                sh 'curl http://localhost:8001/health'
+                sh 'curl http://localhost:8002/health'
+                sh 'curl http://localhost:8003/health'
+                sh 'curl http://localhost:8004/health'
+                sh 'curl http://localhost:8005/health'
             }
         }
     }
