@@ -173,14 +173,17 @@ services:
     restart: unless-stopped
 
   # ─── Monitoring ──────────────────────────────────────────
+  services:
+
   prometheus:
-  image: prom/prometheus:v2.47.0
-  ports:
-    - "9090:9090"
-  volumes:
-    - ./monitoring/prometheus:/etc/prometheus
-  command:
-    - "--config.file=/etc/prometheus/prometheus.yml"
+    image: prom/prometheus:v2.47.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus:/etc/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+
 
   grafana:
     image: grafana/grafana:10.2.0
