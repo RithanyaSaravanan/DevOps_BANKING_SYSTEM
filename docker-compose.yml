@@ -1,0 +1,219 @@
+version: "3.9"
+
+services:
+
+  # ─── Databases ───────────────────────────────────────────
+  postgres-user:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: banking
+      POSTGRES_PASSWORD: banking123
+      POSTGRES_DB: userdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata-user:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U banking -d userdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres-account:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: banking
+      POSTGRES_PASSWORD: banking123
+      POSTGRES_DB: accountdb
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata-account:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U banking -d accountdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres-transaction:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: banking
+      POSTGRES_PASSWORD: banking123
+      POSTGRES_DB: transactiondb
+    ports:
+      - "5434:5432"
+    volumes:
+      - pgdata-transaction:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U banking -d transactiondb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres-payment:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: banking
+      POSTGRES_PASSWORD: banking123
+      POSTGRES_DB: paymentdb
+    ports:
+      - "5435:5432"
+    volumes:
+      - pgdata-payment:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U banking -d paymentdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres-fraud:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: banking
+      POSTGRES_PASSWORD: banking123
+      POSTGRES_DB: frauddb
+    ports:
+      - "5436:5432"
+    volumes:
+      - pgdata-fraud:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U banking -d frauddb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ─── Microservices ───────────────────────────────────────
+  user-service:
+    build: ./user-service
+    ports:
+      - "8001:8000"
+    environment:
+      DATABASE_URL: postgresql://banking:banking123@postgres-user:5432/userdb
+      SECRET_KEY: super-secret-key-change-in-prod
+    depends_on:
+      postgres-user:
+        condition: service_healthy
+    restart: unless-stopped
+
+  account-service:
+    build: ./account-service
+    ports:
+      - "8002:8000"
+    environment:
+      DATABASE_URL: postgresql://banking:banking123@postgres-account:5432/accountdb
+      SECRET_KEY: super-secret-key-change-in-prod
+    depends_on:
+      postgres-account:
+        condition: service_healthy
+    restart: unless-stopped
+
+  transaction-service:
+    build: ./transaction-service
+    ports:
+      - "8003:8000"
+    environment:
+      DATABASE_URL: postgresql://banking:banking123@postgres-transaction:5432/transactiondb
+      SECRET_KEY: super-secret-key-change-in-prod
+      ACCOUNT_SERVICE_URL: http://account-service:8000
+    depends_on:
+      postgres-transaction:
+        condition: service_healthy
+      account-service:
+        condition: service_started
+    restart: unless-stopped
+
+  fraud-service:
+    build: ./fraud-service
+    ports:
+      - "8004:8000"
+    environment:
+      DATABASE_URL: postgresql://banking:banking123@postgres-fraud:5432/frauddb
+    depends_on:
+      postgres-fraud:
+        condition: service_healthy
+    restart: unless-stopped
+
+  payment-service:
+    build: ./payment-service
+    ports:
+      - "8005:8000"
+    environment:
+      DATABASE_URL: postgresql://banking:banking123@postgres-payment:5432/paymentdb
+      SECRET_KEY: super-secret-key-change-in-prod
+      FRAUD_SERVICE_URL: http://fraud-service:8000
+      ACCOUNT_SERVICE_URL: http://account-service:8000
+      TRANSACTION_SERVICE_URL: http://transaction-service:8000
+    depends_on:
+      postgres-payment:
+        condition: service_healthy
+      fraud-service:
+        condition: service_started
+      account-service:
+        condition: service_started
+    restart: unless-stopped
+
+  # ─── API Gateway ─────────────────────────────────────────
+  gateway:
+    build: ./gateway
+    ports:
+      - "8000:8000"
+    environment:
+      USER_SERVICE_URL: http://user-service:8000
+      ACCOUNT_SERVICE_URL: http://account-service:8000
+      TRANSACTION_SERVICE_URL: http://transaction-service:8000
+      PAYMENT_SERVICE_URL: http://payment-service:8000
+      FRAUD_SERVICE_URL: http://fraud-service:8000
+    depends_on:
+      - user-service
+      - account-service
+      - transaction-service
+      - payment-service
+      - fraud-service
+    restart: unless-stopped
+
+  # ─── Monitoring ──────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./monitoring/grafana/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./monitoring/grafana/dashboard.json:/etc/grafana/provisioning/dashboards/banking-platform.json
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    ports:
+      - "8080:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+    restart: unless-stopped
+
+volumes:
+  pgdata-user:
+  pgdata-account:
+  pgdata-transaction:
+  pgdata-payment:
+  pgdata-fraud:
+  grafana-data:
+  jenkins_home:

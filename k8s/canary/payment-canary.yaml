@@ -1,0 +1,104 @@
+# ──────────────────────────────────────────────────────────
+# Canary Deployment Strategy for payment-service
+#
+# Traffic split:
+#   payment-service-v1  →  90% (stable)
+#   payment-service-v2  →  10% (canary)
+#
+# Both deployments share the same Service selector (app: payment-service)
+# Traffic is split by replica ratio: v1=9 replicas, v2=1 replica
+# For weighted routing use Nginx Ingress or Istio (see comments below)
+# ──────────────────────────────────────────────────────────
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service-v2
+  namespace: banking
+  labels:
+    app: payment-service
+    version: v2
+  annotations:
+    deployment.kubernetes.io/revision: "2"
+    description: "Canary release - 10% traffic"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+      version: v2
+  template:
+    metadata:
+      labels:
+        app: payment-service
+        version: v2
+    spec:
+      containers:
+        - name: payment-service
+          image: your-dockerhub/payment-service:v2
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: banking-secrets
+                  key: payment-db-url
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: banking-secrets
+                  key: jwt-secret
+            - name: FRAUD_SERVICE_URL
+              value: "http://fraud-service:8000"
+            - name: ACCOUNT_SERVICE_URL
+              value: "http://account-service:8000"
+            - name: TRANSACTION_SERVICE_URL
+              value: "http://transaction-service:8000"
+            - name: APP_VERSION
+              value: "v2"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "250m"
+
+---
+# ── Nginx Ingress Canary (weight-based, more precise than replica ratio) ──
+# Uncomment and apply this if you have nginx-ingress installed.
+#
+# apiVersion: networking.k8s.io/v1
+# kind: Ingress
+# metadata:
+#   name: payment-canary-ingress
+#   namespace: banking
+#   annotations:
+#     nginx.ingress.kubernetes.io/canary: "true"
+#     nginx.ingress.kubernetes.io/canary-weight: "10"
+# spec:
+#   ingressClassName: nginx
+#   rules:
+#     - host: banking.local
+#       http:
+#         paths:
+#           - path: /api/payments
+#             pathType: Prefix
+#             backend:
+#               service:
+#                 name: payment-service-v2-svc
+#                 port:
+#                   number: 8000

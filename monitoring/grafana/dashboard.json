@@ -1,0 +1,186 @@
+{
+  "id": null,
+  "uid": "banking-platform",
+  "title": "Banking Platform",
+  "tags": ["banking"],
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "id": 1,
+      "title": "Services Up",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
+      "targets": [{
+        "expr": "sum(up)",
+        "legendFormat": "Services Online"
+      }],
+      "options": {
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              {"color": "red", "value": 0},
+              {"color": "yellow", "value": 4},
+              {"color": "green", "value": 6}
+            ]
+          },
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Total HTTP Requests (last 5m)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 0},
+      "targets": [{
+        "expr": "sum(increase(http_requests_total[5m]))",
+        "legendFormat": "Requests"
+      }],
+      "options": {"colorMode": "background", "graphMode": "none"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "fixed", "fixedColor": "blue"},
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Payment Requests (last 5m)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
+      "targets": [{
+        "expr": "sum(increase(http_requests_total{job=\"payment-service\"}[5m]))",
+        "legendFormat": "Payments"
+      }],
+      "options": {"colorMode": "background", "graphMode": "none"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "fixed", "fixedColor": "green"},
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Fraud Checks (last 5m)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
+      "targets": [{
+        "expr": "sum(increase(http_requests_total{job=\"fraud-service\"}[5m]))",
+        "legendFormat": "Fraud Checks"
+      }],
+      "options": {"colorMode": "background", "graphMode": "none"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "fixed", "fixedColor": "orange"},
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Error Rate % (last 5m)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 0},
+      "targets": [{
+        "expr": "sum(increase(http_requests_total{status=~\"5..\"}[5m])) / sum(increase(http_requests_total[5m])) * 100",
+        "legendFormat": "Error %"
+      }],
+      "options": {"colorMode": "background", "graphMode": "none"},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "steps": [
+              {"color": "green", "value": 0},
+              {"color": "yellow", "value": 1},
+              {"color": "red", "value": 5}
+            ]
+          },
+          "color": {"mode": "thresholds"}
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "Request Rate per Service (req/s)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+      "targets": [
+        {"expr": "rate(http_requests_total{job=\"user-service\"}[1m])", "legendFormat": "User Service"},
+        {"expr": "rate(http_requests_total{job=\"account-service\"}[1m])", "legendFormat": "Account Service"},
+        {"expr": "rate(http_requests_total{job=\"transaction-service\"}[1m])", "legendFormat": "Transaction Service"},
+        {"expr": "rate(http_requests_total{job=\"payment-service\"}[1m])", "legendFormat": "Payment Service"},
+        {"expr": "rate(http_requests_total{job=\"fraud-service\"}[1m])", "legendFormat": "Fraud Service"},
+        {"expr": "rate(http_requests_total{job=\"gateway\"}[1m])", "legendFormat": "Gateway"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "reqps"}},
+      "options": {"tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 7,
+      "title": "Average Response Time per Service (ms)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+      "targets": [
+        {"expr": "rate(http_request_duration_seconds_sum{job=\"user-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"user-service\"}[1m]) * 1000", "legendFormat": "User Service"},
+        {"expr": "rate(http_request_duration_seconds_sum{job=\"payment-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"payment-service\"}[1m]) * 1000", "legendFormat": "Payment Service"},
+        {"expr": "rate(http_request_duration_seconds_sum{job=\"fraud-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"fraud-service\"}[1m]) * 1000", "legendFormat": "Fraud Service"},
+        {"expr": "rate(http_request_duration_seconds_sum{job=\"account-service\"}[1m]) / rate(http_request_duration_seconds_count{job=\"account-service\"}[1m]) * 1000", "legendFormat": "Account Service"}
+      ],
+      "fieldConfig": {"defaults": {"unit": "ms"}},
+      "options": {"tooltip": {"mode": "multi"}}
+    },
+    {
+      "id": 8,
+      "title": "HTTP Status Codes Breakdown",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+      "targets": [
+        {"expr": "sum(rate(http_requests_total{status=~\"2..\"}[1m]))", "legendFormat": "2xx Success"},
+        {"expr": "sum(rate(http_requests_total{status=~\"4..\"}[1m]))", "legendFormat": "4xx Client Error"},
+        {"expr": "sum(rate(http_requests_total{status=~\"5..\"}[1m]))", "legendFormat": "5xx Server Error"}
+      ],
+      "fieldConfig": {
+        "defaults": {"unit": "reqps"},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "2xx Success"}, "properties": [{"id": "color", "value": {"fixedColor": "green", "mode": "fixed"}}]},
+          {"matcher": {"id": "byName", "options": "4xx Client Error"}, "properties": [{"id": "color", "value": {"fixedColor": "yellow", "mode": "fixed"}}]},
+          {"matcher": {"id": "byName", "options": "5xx Server Error"}, "properties": [{"id": "color", "value": {"fixedColor": "red", "mode": "fixed"}}]}
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "title": "Service Health (1 = UP, 0 = DOWN)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+      "targets": [
+        {"expr": "up{job=\"user-service\"}", "legendFormat": "User Service"},
+        {"expr": "up{job=\"account-service\"}", "legendFormat": "Account Service"},
+        {"expr": "up{job=\"transaction-service\"}", "legendFormat": "Transaction Service"},
+        {"expr": "up{job=\"payment-service\"}", "legendFormat": "Payment Service"},
+        {"expr": "up{job=\"fraud-service\"}", "legendFormat": "Fraud Service"},
+        {"expr": "up{job=\"gateway\"}", "legendFormat": "Gateway"}
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 1,
+          "thresholds": {
+            "steps": [{"color": "red", "value": 0}, {"color": "green", "value": 1}]
+          },
+          "color": {"mode": "thresholds"}
+        }
+      }
+    }
+  ]
+}

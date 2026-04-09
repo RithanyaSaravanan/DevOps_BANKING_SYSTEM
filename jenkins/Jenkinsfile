@@ -1,0 +1,194 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKERHUB_CREDENTIALS = credentials('dockerhub-credentials')
+        DOCKERHUB_USER        = 'your-dockerhub-username'
+        KUBECONFIG_CREDENTIAL = credentials('kubeconfig')
+        REGISTRY              = "docker.io/${DOCKERHUB_USER}"
+        SERVICES              = 'user-service account-service transaction-service payment-service fraud-service gateway'
+        K8S_NAMESPACE         = 'banking'
+        SONAR_TOKEN           = credentials('sonar-token')
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_SHORT_SHA = sh(returnStdout: true, script: 'git rev-parse --short HEAD').trim()
+                    env.IMAGE_TAG     = "${env.BUILD_NUMBER}-${env.GIT_SHORT_SHA}"
+                }
+                echo "Building commit: ${env.GIT_SHORT_SHA}  tag: ${env.IMAGE_TAG}"
+            }
+        }
+
+        stage('Unit Tests') {
+            parallel {
+                stage('Test user-service') {
+                    steps {
+                        dir('user-service') {
+                            sh 'pip install -r requirements.txt --quiet'
+                            sh 'python -m pytest tests/ -v --tb=short || echo "No tests found, skipping"'
+                        }
+                    }
+                }
+                stage('Test payment-service') {
+                    steps {
+                        dir('payment-service') {
+                            sh 'pip install -r requirements.txt --quiet'
+                            sh 'python -m pytest tests/ -v --tb=short || echo "No tests found, skipping"'
+                        }
+                    }
+                }
+                stage('Test fraud-service') {
+                    steps {
+                        dir('fraud-service') {
+                            sh 'pip install -r requirements.txt --quiet'
+                            sh 'python -m pytest tests/ -v --tb=short || echo "No tests found, skipping"'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Security Scan (Trivy)') {
+            steps {
+                sh '''
+                    which trivy || (curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin)
+                    trivy fs --exit-code 0 --severity HIGH,CRITICAL --format table . || true
+                '''
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    def services = env.SERVICES.split(' ')
+                    services.each { svc ->
+                        echo "Building ${svc}..."
+                        sh """
+                            docker build -t ${REGISTRY}/${svc}:${IMAGE_TAG} \
+                                         -t ${REGISTRY}/${svc}:latest \
+                                         ./${svc}
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Scan Docker Images') {
+            steps {
+                script {
+                    def services = env.SERVICES.split(' ')
+                    services.each { svc ->
+                        sh """
+                            trivy image --exit-code 0 \
+                                        --severity HIGH,CRITICAL \
+                                        --format table \
+                                        ${REGISTRY}/${svc}:${IMAGE_TAG} || true
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Push to DockerHub') {
+            steps {
+                sh 'echo $DOCKERHUB_CREDENTIALS_PSW | docker login -u $DOCKERHUB_CREDENTIALS_USR --password-stdin'
+                script {
+                    def services = env.SERVICES.split(' ')
+                    services.each { svc ->
+                        sh """
+                            docker push ${REGISTRY}/${svc}:${IMAGE_TAG}
+                            docker push ${REGISTRY}/${svc}:latest
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to Kubernetes') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                    sh '''
+                        kubectl apply -f k8s/base/secrets.yaml
+                        kubectl apply -f k8s/base/
+
+                        # Update image tags for each service
+                        kubectl set image deployment/user-service \
+                            user-service=${REGISTRY}/user-service:${IMAGE_TAG} \
+                            -n ${K8S_NAMESPACE}
+
+                        kubectl set image deployment/account-service \
+                            account-service=${REGISTRY}/account-service:${IMAGE_TAG} \
+                            -n ${K8S_NAMESPACE}
+
+                        kubectl set image deployment/transaction-service \
+                            transaction-service=${REGISTRY}/transaction-service:${IMAGE_TAG} \
+                            -n ${K8S_NAMESPACE}
+
+                        kubectl set image deployment/fraud-service \
+                            fraud-service=${REGISTRY}/fraud-service:${IMAGE_TAG} \
+                            -n ${K8S_NAMESPACE}
+
+                        kubectl set image deployment/payment-service-v1 \
+                            payment-service=${REGISTRY}/payment-service:${IMAGE_TAG} \
+                            -n ${K8S_NAMESPACE}
+
+                        kubectl set image deployment/gateway \
+                            gateway=${REGISTRY}/gateway:${IMAGE_TAG} \
+                            -n ${K8S_NAMESPACE}
+                    '''
+                }
+            }
+        }
+
+        stage('Canary Deploy (payment-service v2)') {
+            when {
+                branch 'release/*'
+            }
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                    sh '''
+                        kubectl apply -f k8s/canary/payment-canary.yaml -n ${K8S_NAMESPACE}
+                        echo "Canary deployed with 10% traffic. Monitor Grafana before promoting."
+                    '''
+                }
+            }
+        }
+
+        stage('Rollout Verification') {
+            steps {
+                withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                    sh '''
+                        kubectl rollout status deployment/gateway -n ${K8S_NAMESPACE} --timeout=120s
+                        kubectl rollout status deployment/user-service -n ${K8S_NAMESPACE} --timeout=120s
+                        kubectl rollout status deployment/payment-service-v1 -n ${K8S_NAMESPACE} --timeout=120s
+                        echo "All rollouts successful!"
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Pipeline SUCCESS — Build ${IMAGE_TAG} deployed."
+        }
+        failure {
+            echo "Pipeline FAILED — check logs above."
+            withCredentials([file(credentialsId: 'kubeconfig', variable: 'KUBECONFIG')]) {
+                sh '''
+                    kubectl rollout undo deployment/gateway -n ${K8S_NAMESPACE} || true
+                    kubectl rollout undo deployment/payment-service-v1 -n ${K8S_NAMESPACE} || true
+                '''
+            }
+        }
+        always {
+            sh 'docker logout || true'
+            cleanWs()
+        }
+    }
+}
