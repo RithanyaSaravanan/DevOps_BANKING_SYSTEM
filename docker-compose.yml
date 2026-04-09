@@ -125,7 +125,7 @@ services:
   gateway:
     build: ./gateway
     ports:
-      - "8000:8000"
+      - "8010:8000"
     environment:
       USER_SERVICE_URL: http://user-service:8000
       ACCOUNT_SERVICE_URL: http://account-service:8000

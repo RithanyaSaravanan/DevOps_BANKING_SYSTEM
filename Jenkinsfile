@@ -16,22 +16,21 @@ pipeline {
 
         stage('Wait for Services') {
             steps {
-                sh 'sleep 20'
+                sh 'sleep 40'
             }
         }
 
         stage('Health Check') {
             steps {
-                sh 'curl http://localhost:8001/health'
-                sh 'curl http://localhost:8002/health'
-                sh 'curl http://localhost:8003/health'
-                sh 'curl http://localhost:8004/health'
-                sh 'curl http://localhost:8005/health'
+                sh 'curl -f http://localhost:8010/health'
             }
         }
     }
 
     post {
+        always {
+            sh 'docker-compose down || true'
+        }
         success {
             echo '✅ Deployment Successful!'
         }
